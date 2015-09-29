@@ -1,0 +1,461 @@
+---
+title: "Titanic - Exploratory Analysis"
+author: "Fabrice Tereszkiewicz"
+date: "29 Sep 2015"
+output: html_document
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+library('ggplot2')
+library('dplyr')
+library('tidyr')
+```
+
+# Titanic: Machine Learning from Disaster
+
+## Introduction
+
+The Kaggle competition "Titanic: Machine Learning from Disaster" offers the opportunity to analyse the outcome of the Titanic disaster. We have access to the list of passengers who survived or not along with information regarding their situation (passenger class, travelled alone or in family, etc..).
+
+The goal is to build a model to predict if a passenger survived based on this data. We will first look at the raw data to get a better picture of the parameters that are more or less correlated with the survival of the passenger.
+
+## Loading data
+
+The data is in CSV format. You must download it from the Kaggle competition and place it in a `data` folder.
+
+```{r, cache=TRUE}
+df <- read.csv2('../data/train.csv', sep = ',')
+```
+
+A quick look at the data:
+
+```{r}
+glimpse(df)
+```
+
+We have 891 observations, 12 features.
+
+## Features analysis
+
+### Passenger Id
+
+This is obviously not useful to determine if the passenger survived or not. We will exclude it in the preprocessing stage.
+
+### Survived
+
+This is the outcome of the prediction, we will use it to train our model. This shouldn't be an `integer` but a factor. Let's see how many passengers in our dataset survived the disaster:
+
+```{r}
+df$Survived <- as.factor(df$Survived)
+d <- data.frame(
+    x = factor(c('Survived', 'Died')),
+    y = c(count(df[df$Survived == 1,])$n, count(df[df$Survived == 0,])$n)
+    )
+d
+g <- ggplot(d, aes(x=x, y=y))
+g <- g + geom_bar(stat='identity', aes(fill=x))
+g <- g + labs(title="Titanic survivors", x='', y='')
+g
+```
+
+### Passenger class
+
+That's the feature `Pclass` in the dataset. This can be considered a proxy for the social status of the passenger (i.e. 1st class passenger are probably wealthier than 3rd class passengers).
+
+```{r}
+unique(df$Pclass)
+```
+
+We have only 3 classes. Let's make a factor out of it and look at the repartition.
+
+```{r}
+df$Pclass <- as.factor(df$Pclass)
+d <- data.frame(
+    x = factor(c('1st class', '2nd class', '3rd class')),
+    y = c(count(df[df$Pclass == 1,])$n,
+          count(df[df$Pclass == 2,])$n,
+          count(df[df$Pclass == 3,])$n)
+    )
+d
+g <- ggplot(d, aes(x=x, y=y))
+g <- g + geom_bar(stat='identity', aes(fill=x))
+g <- g + labs(title="Passenger class population", x='', y='')
+g
+```
+
+We can see that the majority of the passengers are in the 3rd class. Let's see among each class, how many passenger survived the disaster.
+
+```{r}
+d <- df %>% select(Survived, Pclass)
+g <- ggplot(data = d, aes(x=Pclass, fill=Survived))
+g <- g + geom_bar() 
+g <- g + labs(title="Survivors by passenger class", x="Passenger class", y="Number of passengers") 
+g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
+g
+```
+
+We can see that the majority of the passengers in first class survived, so did about half of those in second class. The majority of the losses come from the 3rd class.
+
+The passenger class is therefore to be considered an important feature for our model.
+
+### Passenger name
+
+This feature is probably not relevant, but we can still have a look at a few caracteristics and see if we find some correlation with the survival rate. This feature shouldn't be treated as a factor but as a string.
+
+```{r}
+df$Name <- as.character(df$Name)
+```
+
+First, some names have an additional name in brackets. That may also be an indicator of the social status of the passenger. Let's have a look.
+
+```{r}
+d <- df %>% mutate(AdditionalName = grepl('\\(', Name)) %>% select(Survived, AdditionalName) 
+g <- ggplot(data = d, aes(x=AdditionalName, fill=Survived))
+g <- g + geom_bar() 
+g <- g + labs(title="Survivors with brackets in their names", x="Brackets in name", y="Number of passengers") 
+g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
+g
+```
+
+Well, it looks like if you have an additional name in brackets, it indeed increase your probability of dying from the disaster.
+
+Another information from the name could be the title. Especially for women, the disctinction between Mrs and Miss may be interesting. Men are al Mr (or Don...)
+
+```{r}
+d <- df %>% filter(Sex=='female') %>% mutate('Miss'=grepl("Miss", Name)) %>% select(Survived, Miss)
+g <- ggplot(data = d, aes(x=Miss, fill=Survived))
+g <- g + geom_bar() 
+g <- g + labs(title="Women Survivors betwwen Miss and Mrs", x="Miss or Mrs", y="Number of female passengers") 
+g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
+g
+```
+
+Here are the survival rates among Miss and Mrs:
+
+```{r}
+count(d[d$Miss==TRUE & d$Survived==1,])$n / count(d[d$Miss==TRUE,])$n
+count(d[d$Miss==FALSE & d$Survived==1,])$n / count(d[d$Miss==FALSE,])$n
+```
+
+So about 70% of the Miss survived, and about 80% of the Mrs. Well we can still include this information.
+
+That's about all I can think of for the names.
+
+### Passenger sex
+
+Male or female, does it have a correlation with the survival rate ?
+
+```{r}
+d <- df %>% select(Survived, Sex)
+g <- ggplot(data = d, aes(x=Sex, fill=Survived))
+g <- g + geom_bar() 
+g <- g + labs(title="Women/Men Survivors", x="Sex", y="Number of passengers") 
+g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
+g
+```
+
+Ok, looks like female have more chance to survive. This is definitely an important feature for our model.
+
+### Passenger age
+
+We see a few missing values here. Let's convert this column to numeric and make sure we exclude the NA's values from this analysis.
+
+```{r}
+df$Age <- as.numeric(as.character(df$Age))
+```
+
+```{r}
+d <- df %>% select(Age, Survived) %>% filter(!is.na(Age))
+g <- ggplot(data = d, aes(x=Age, fill=Survived))
+g <- g + geom_bar() 
+g <- g + labs(title="Age of Survivors", x="Age", y="Number of passengers") 
+g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
+g
+```
+
+We can see that younger people have more chance to survive. Maybe we should look at the sex as well.
+
+```{r}
+d <- df %>% select(Sex, Age, Survived) %>% filter(!is.na(Age)) %>% group_by(Sex)
+g <- ggplot(data = d, aes(x=Age, fill=Survived))
+g <- g + geom_bar() 
+g <- g + labs(title="Age of Survivors", x="Age", y="Number of passengers") 
+g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
+g <- g + facet_grid(. ~ Sex)
+g
+```
+
+As expected, females have a better chance of survival.
+
+The passenger age seems a very important feature. We will have to decide a method for filling in the missing values.
+
+### Number of Siblings/Spouses Aboard
+
+We can se from the data if a passenger has a siblink on board. Does it impact its survival rate ?
+
+```{r}
+d <- df %>% select(Survived, SibSp)
+g <- ggplot(data = d, aes(x=SibSp, fill=Survived))
+g <- g + geom_bar() 
+g <- g + labs(title="Survivors with siblings", x="Number of siblings", y="Number of passengers") 
+g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
+g
+```
+
+It looks like the more siblings on board, the less likely the passenger will survive. Maybe intersting to look at it per Sex:
+
+```{r}
+d <- df %>% group_by(Sex) %>% select(Survived, SibSp)
+g <- ggplot(data = d, aes(x=SibSp, fill=Survived))
+g <- g + geom_bar() 
+g <- g + labs(title="Survivors with siblings", x="Number of siblings", y="Number of passengers") 
+g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
+g <- g + facet_grid(. ~ Sex)
+g
+```
+
+We've already established that females have more chance of survival. Mens with a lot of siblings have less chance of survival.
+
+### Number of Parents/Children Aboard
+
+```{r}
+d <- df %>% select(Survived, Parch)
+g <- ggplot(data = d, aes(x=Parch, fill=Survived))
+g <- g + geom_bar() 
+g <- g + labs(title="Survivors with Parents/Children", x="Number of relation", y="Number of passengers") 
+g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
+g
+```
+
+This doesn't look like a very important feature. But if we look at male and female, we get another picture :
+
+```{r}
+d <- df %>% group_by(Sex) %>% select(Survived, Parch, Sex)
+g <- ggplot(data = d, aes(x=Parch, fill=Survived))
+g <- g + geom_bar() 
+g <- g + labs(title="Survivors with Parents/Children", x="Number of relation", y="Number of passengers") 
+g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
+g <- g + facet_grid(. ~ Sex)
+g
+```
+
+### Ticket
+
+This feature is a bit more difficult to analyse. The format is not well defined, and its significance is diffcult to establish. Let's look at some information from the ticket references.
+
+That's the survival rate for passenger with "PARIS" in the ticket reference:
+
+```{r}
+df %>% 
+    filter(grepl('PARIS', Ticket)) %>% 
+    group_by(Survived)  %>% 
+    summarise(n = n()) %>% 
+    mutate(survivalrate = n / sum(n))
+```
+
+So... 57% died, 43% survived, not really clear.
+
+Maybe with other references. For "CA" :
+
+```{r}
+df %>% 
+    filter(grepl('CA', Ticket)) %>% 
+    group_by(Survived)  %>% 
+    summarise(n = n()) %>% 
+    mutate(survivalrate = n / sum(n))
+```
+
+That's more interesting, 14 people got a ticket with CA, and only one died.
+
+With "PC", we got a lot of passengers, 65% survived, 35% died:
+
+```{r}
+df %>% 
+    filter(grepl('PC', Ticket)) %>% 
+    group_by(Survived)  %>% 
+    summarise(n = n()) %>% 
+    mutate(survivalrate = n / sum(n))
+```
+
+Ok, looks like the letters on the ticket may have an incidence on the survival rate. Let's look at how many combinations we have, and at the ticket number as well.
+
+```{r}
+d <- df %>% 
+    mutate(
+        TicketString = gsub("\\d","", Ticket),
+        TicketNumber = gsub("\\D", "", Ticket)
+        )
+unique(d$TicketString)
+```
+
+That's a bit messy. We can maybe think of a way to convert these to levels. Also a string is only available for about 75% of the passengers:
+
+```{r}
+d %>% 
+    group_by(TicketString == "") %>% 
+    summarise(n = n()) %>% 
+    mutate(stringinticket = n / sum(n))
+```
+
+Maybe check only the survival rate difference between passenger with letters in their tickets against passenger with only numbers:
+
+```{r}
+d %>% 
+    filter(TicketString == "") %>% 
+    group_by(Survived) %>% 
+    summarise(n = n()) %>% 
+    mutate(survivalrate = n / sum(n))
+
+d %>% 
+    filter(TicketString != "") %>% 
+    group_by(Survived) %>% 
+    summarise(n = n()) %>% 
+    mutate(survivalrate = n / sum(n))
+```
+
+Ok.. not much difference here between ticket holders with and without strings in their ticket.
+
+Maybe the ticket number is more useful. let's convert it to a numeric and plot the survival rate:
+
+```{r}
+d$TicketNumber <- as.numeric(d$TicketNumber)
+g <- ggplot(data = d, aes(x=TicketNumber, fill=Survived))
+g <- g + geom_bar() 
+g <- g + labs(title="Survivors by ticket number", x="Ticket number", y="Number of passengers") 
+g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
+g
+```
+
+Here we can see that ticket holders with a small ticket numbers are among the vast majority of the passengers. The most relevant part, if any, would therefore be for passenger with a small ticket number. Let's exclude the big ticket numbers from this plot and see what we got:
+
+```{r}
+g <- ggplot(data = d %>% filter(TicketNumber < 100000), aes(x=TicketNumber, fill=Survived))
+g <- g + geom_bar() 
+g <- g + labs(title="Survivors by ticket numbe", x="Ticket number", y="Number of passengers") 
+g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
+g
+```
+
+We'll see if we can use all these information when preprocessing the data in the next steps. For now, that's all the information I can draw from the Ticket feature.
+
+### Fare
+
+That's also probabely a proxy for the passenger class, hence for the social status. First let's convert it to numeric. We have 0.00 values, which seem a bit strange.
+
+```{r}
+count(df[df$Fare == 0,])$n
+```
+
+let's ignore these for this exploration. We can fill them later on if needed.
+
+```{r}
+d <- df %>% filter(Fare != 0)
+d$Fare <- as.numeric(as.character(d$Fare))
+g <- ggplot(data = d, aes(x=Fare, fill=Survived))
+g <- g + geom_bar() 
+g <- g + labs(title="Survivors and fares", x="Ticket fare", y="Number of passengers") 
+g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
+g
+```
+
+Also 3 passengers paid more than 400, and they all survived. Let's look in more details at the lower fares.
+
+```{r}
+g <- ggplot(data = d %>% filter(Fare < 100), aes(x=Fare, fill=Survived))
+g <- g + geom_bar(binwidth=1) 
+g <- g + labs(title="Survivors and fares", x="Ticket fare", y="Number of passengers") 
+g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
+g
+```
+
+Clearly, a big proportion of the lower fares died. We cannot ignore this feature for our model, maybe we can fill in the missing values by using the median price (the mean is a bit skewed because of those very expensive passengers).
+
+### Cabin number
+
+This one is a bit complicated because of the amount of missing values.
+
+```{r}
+(df %>% filter(Cabin == "") %>% count)$n
+```
+
+So.. we can still have a look, maybe at the floor (assuming this is the meaning of the letter) and the survival rate for each floor.
+
+```{r}
+d <- df %>%
+    filter(Cabin != "") %>%
+    mutate(Cabin = gsub("^(\\w).*$", "\\1", Cabin)) %>%
+    select(Cabin, Survived)
+g <- ggplot(data = d, aes(x=Cabin, fill=Survived))
+g <- g + geom_bar(binwidth=1) 
+g <- g + labs(title="Survivors by Cabin", x="Cabin floor", y="Number of passengers") 
+g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
+g
+```
+
+```{r}
+dd <- d %>% 
+    group_by(Cabin, Survived) %>% 
+    summarise(n = n()) %>% 
+    mutate(survivalrate = n / sum(n)) %>%
+    select(Survived, Cabin, survivalrate) %>%
+    spread(Survived, survivalrate)
+colnames(dd) <-  c('floor', 'died', 'survived')
+dd
+```
+
+Maybe just the fact to have a cabin number means you have more chance to survive ?
+
+```{r}
+dd <- df %>% 
+    mutate(hascabin = Cabin != "") %>% 
+    group_by(hascabin, Survived) %>% 
+    summarise(n = n()) %>% 
+    mutate(survivalrate = n / sum(n)) %>% 
+    select(hascabin, Survived, survivalrate) %>% 
+    spread(Survived, survivalrate)
+colnames(dd) <-  c('has cabin', 'died', 'survived')
+dd
+```
+
+Well looks like having a cabin number gives you a very high chance of survival (66%) compard to not having one (30%). So we can probabely change this feature to a simple boolean value.
+
+### Port of Embarkation
+
+This feature is a factor with 3 levels:
+
+```{r}
+levels(df$Embarked)
+```
+
+With C = Cherbourg, Q = Queenstowna dn S = Southampton. 2 Passenger have no information regarding their port of embarkation, they both survived. I don't think that's relevant.
+
+Let's look at the survival rate per port:
+
+```{r}
+d <- df %>% filter(Embarked != "") %>% select(Survived, Embarked)
+g <- ggplot(data = d, aes(x=Embarked, fill=Survived))
+g <- g + geom_bar(binwidth=1) 
+g <- g + labs(title="Survivors by Port", x="Port of Embarkation", y="Number of passengers") 
+g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
+g
+```
+
+It's not really evident if the port of embarkation has an impact on the passenger's faith. Looks like better odds for passenger coming from Cherbourg.
+
+```{r}
+dd <- df %>% 
+    filter(Embarked != "") %>% 
+    select(Survived, Embarked) %>% 
+    group_by(Embarked, Survived) %>% 
+    summarise(n = n()) %>% 
+    mutate(survivalrate = n / sum(n)) %>% 
+    select(Embarked, Survived, survivalrate) %>% 
+    spread(Survived, survivalrate)
+colnames(dd) <- c("Port or embarkation", "died", "survived")
+dd
+```
+
+So we can see that passengers embarked in Cherbourg have 55% chance of surviving, that's pretty good compared to the 2 other embarcation ports.
+
+
