@@ -1,0 +1,9 @@
+exploratory_analysis/exploration_cache
+.Rhistory
+modeling/models
+predict/output
+preprocessing/encoders
+preprocessing/models
+preprocessing/output
+preprocessing/scalers
+preprocessing/vars

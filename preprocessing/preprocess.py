@@ -1,62 +1,71 @@
 # -*- coding: utf-8 -*-
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import LabelEncoder
+import argparse
+import sys
+import os
+from sklearn import preprocessing
 from sklearn.linear_model import LinearRegression
 from sklearn.externals import joblib
 
+def flatten_feature(col):
+    '''
+    This function takes all the values in a column
+    and returns a dataframe with boolean values
+    for each possible values in the column
+    '''
+    # create a dataframe and convert to integer
+    toReturn = pd.get_dummies(col, prefix=col.name).applymap(int)
+    return toReturn
 
-def fill_missing_ages(df):
+def fill_missing_ages(df, train):
+    '''
+    fills the age using a linear regression model
+    '''
     # for the age, we need to set a value when Nan...
-    age_estimator = build_age_regression_model(df)
+    if train:
+        age_estimator = build_age_regression_model(df)
+    else:
+        age_estimator = joblib.load('./models/age_regressor.pkl')
     # use the estimator to build an array of missing ages
     ages = age_estimator.predict(df[['Sex', 'Fare', 'Pclass']][df['Age'].isnull()])
     indexes = df[['Sex', 'Fare', 'Pclass']][df['Age'].isnull()].index
     # convert ages array to panda serie
     fill_ages = pd.Series(np.array(ages), np.array(indexes))
     # and fill the missing values
-    df['Age'].fillna(fill_ages, inplace=True)
+    Age = pd.Series(df['Age'], name='age')
+    Age.fillna(fill_ages, inplace=True)
 
-    return df['Age']
+    return Age
 
 
 def build_age_regression_model(df):
     '''
-    this builds a simple linear regression
-    model to determine the age
-    when it's not available
+    this builds a simple linear regression model for the age,
+    based on the sex/class and fare paid by the
+    passenger
     '''
-    df = df[['Sex', 'Fare', 'Pclass', 'Age']][df.Age.notnull()]
-    df_age_data = df[['Sex', 'Fare', 'Pclass']]
-    df_age_target = df['Age']
+    df_age = pd.DataFrame(df[['Sex', 'Fare', 'Pclass', 'Age']][df.Age.notnull()])
+    df_age_data = df_age[['Sex', 'Fare', 'Pclass']]
+    df_age_target = df_age['Age']
     regressor = LinearRegression()
     regressor.fit(df_age_data, df_age_target)
-    # save regrseeor model to disk
-    joblib.dump(regressor, '../models/age_regressor.pkl')
+    # save regression model to disk
+    joblib.dump(regressor, './models/age_regressor.pkl')
     return regressor
 
 def names_to_title(df):
     '''
-    We use the title here, with a code for Mr, Mrs and Miss
-    When not Miss or Mrs, this is assumed to be Mr (like for Don.)
+    We extract the title from the name here
     '''
     # create a new dataframe
-    df2 = pd.DataFrame(df['Name'])
-    df2['Title'] = df2.apply(lambda row: fill_title(row), axis=1)
-    return df2['Title']
-
-
-def fill_title(row):
-    '''
-    function to fill in the title from
-    the name column
-    '''
-    if 'Miss' in row['Name']:
-        return 'Miss'
-    elif 'Mrs' in row['Name']:
-        return 'Mrs'
-    else:
-        return 'Mr'
+    Title = pd.Series(df['Name'].str.extract('.*,\s?\w*?\s?(\w+)\..*'), name='title')
+    # group titles as per the observations
+    Title[Title.isin(['Lady', 'Countess'])] = 'Lady'
+    Title[Title.isin(['Rev', 'Dr', 'Jonkheer', 'Major', 'Master', 'Capt', 'Col', 'Don'])] = 'Sir'
+    Title[Title.isin(['Mlle', 'Ms', 'Miss'])] = 'Miss'
+    Title[Title.isin(['Mrs', 'Mme'])] = 'Mrs'
+    return Title
 
 
 def names_to_bracket(df):
@@ -67,74 +76,226 @@ def names_to_bracket(df):
     # create a new dataframe
     df2 = pd.DataFrame(df['Name'])
     df2['Bracket'] = df2.apply(lambda row: fill_bracket(row), axis=1)
-    return df2['Bracket']
+    return pd.Series(df2['Bracket'], name='braket')
 
 
 def fill_bracket(row):
     '''
-    returns True if there's a braket in the name,
-    False otherwise
+    returns 1 if there's a braket in the name,
+    0 otherwise
     '''
     if '(' in row['Name']:
-        return True
+        return 1
     else:
-        return False
+        return 0
 
 
-def fill_fares(df):
+def names_to_family(df, train):
+    '''
+    set the family name with the size of the family
+    '''
+    df2 = pd.DataFrame(df[['Name', 'SibSp', 'Parch']])
+    df2['Family'] = df2.apply(lambda row: fill_family(row), axis=1)
+    if train:
+        # we're training the model, so we'll save the family we found
+        # and use it when preprocessing the test data
+        train_families = pd.unique(df2['Family'])
+        joblib.dump(train_families, './vars/train_families.pkl')
+    else:
+        train_families = joblib.load('./vars/train_families.pkl')
+        # we replace the family we don't know about by "unknown"
+        df2['Family'][~df2['Family'].isin(train_families)] = 'unknown'
+        pass
+    return pd.Series(df2['Family'], name='family')
+
+
+def fill_family(row):
+    '''
+    returns the family name and the size of the family
+    Also returns "none" if travelling alone
+    '''
+    family_size = row['Parch'] + row['SibSp'] + 1
+    family_name = row['Name'].split(',')[0]
+    if family_size > 1:
+        return family_name + '_' + str(family_size)
+    else:
+        return 'none'
+
+
+
+def fill_fares(df, train):
     '''
     The fare is an important parameter,
-    we fill the missing values with the median
+    We fill the value with the mean of the class
+    Save the values for future use
     '''
-    Fare = df['Fare']
-    Fare.ix[Fare == 0] = np.median(Fare)
+    Fare = pd.Series(df['Fare'], name='fare')
+    if train:
+        # build list of mean prices
+        t = pd.concat([df['Pclass'], Fare], axis=1)
+        t = t.loc[(t['fare'] != 0) & (pd.notnull(t['fare']))]
+        grouped = t.groupby(['Pclass'])
+        mean_fares = {}
+        for name, group in grouped:
+            mean_fares[name] = np.mean(group).fare
+        joblib.dump(mean_fares, './vars/mean_fares.pkl')
+    else:
+        mean_fares = joblib.load('./vars/mean_fares.pkl')
+
+    t = pd.concat([df['Pclass'], Fare], axis=1)
+    for index, row in t[(Fare == 0) | (pd.isnull(Fare))].iterrows():
+        Fare.loc[index] = mean_fares[t.loc[index, 'Pclass']]
     return Fare
 
 
 def fill_has_cabin(df):
     '''
-    returns true or false if the passenger
-    has a cabin assigned
+    Set the number of cabins
     '''
-    HasCabin = df['Cabin']
-    HasCabin[HasCabin.notnull()] = True
-    HasCabin[HasCabin.isnull()] = False
-    return HasCabin
+    HasCabin = pd.Series(df['Cabin'], name='cabin')
+    # count number of cabins
+    return HasCabin.fillna('').map(lambda x: len(str(x).split()))
 
 
-def fill_port(df):
+def fill_cabin_deck(df):
+    '''
+    returns the deck where the cabin is located.
+    This is exctracting the first letter of the cabin.
+    When no cabin, set emtpy
+    '''
+    CabinDeck = pd.Series(df['Cabin'], name='deck')
+    return CabinDeck.map(lambda x: '' if pd.isnull(x) else str(x)[0])
+
+def fill_port(df, train):
     '''
     fill with the most common value, S
     '''
-    Port = df['Embarked']
-    Port.fillna('S')
+    Port = pd.Series(df['Embarked'])
+    if train:
+        default_port = 'S'
+        joblib.dump(default_port, './vars/default_port.pkl')
+    else:
+        default_port = joblib.load('./vars/default_port.pkl')
+    Port[pd.isnull(Port)] = default_port
     return Port
 
 
 def main():
+    # widen pd output for debugging
+    pd.set_option('display.width', 1000)
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input", help="Input file to parse (CSV)")
+    parser.add_argument("--train", help="Train action, this will create models and encoders.", action="store_true")
+    args = parser.parse_args()
+
+    if args.input is None:
+        parser.print_help()
+        sys.exit()
+    input_file = args.input
+    train = False
+    if args.train:
+        train = True
 
     # load data
-    df = pd.read_csv('../data/train.csv')
+    df = pd.read_csv(input_file)
 
     # feature engineering
-    lb = LabelEncoder()
-    df['Sex'] = lb.fit_transform(df['Sex'])
-    Pclass = df['Pclass']
-    Title = names_to_title(df)
-    Bracket = names_to_bracket(df)
-    Sex = df['Sex']
-    Age = fill_missing_ages(df)
-    Siblings = df['SibSp']
-    Parents = df['Parch']
-    Fare = fill_fares(df)
-    HasCabin = fill_has_cabin(df)
-    Port = fill_port(df)
-    Survived = df['Survived']
 
-    new_df = pd.concat([Survived, Pclass, Title, Bracket, Sex, Age, Siblings, Parents, Fare, HasCabin, Port], axis=1)
+    # transform Sex labels to 0/1 and save encoder to disk
+    if train:
+        lb_sex = preprocessing.LabelEncoder()
+        df['Sex'] = lb_sex.fit_transform(df['Sex'])
+        joblib.dump(lb_sex, './encoders/lb_sex.pkl')
+    else:
+        lb_sex = joblib.load('./encoders/lb_sex.pkl')
+        df['Sex'] = lb_sex.transform(df['Sex'])
+    Sex = pd.Series(df['Sex'], name='sex')
+
+    # Passenger class is ok, just needs flattening
+    Pclass = flatten_feature(pd.Series(df['Pclass'], name='class'))
+
+    # Extract titles from passenger names
+    Title = names_to_title(df)
+    # and flatten
+    Title = flatten_feature(Title)
+
+    # Extract brackets from names, returns 0/1 Serie
+    Bracket = names_to_bracket(df)
+
+    # get the families from the name
+    Family = names_to_family(df, train)
+    # and flatten
+    Family = flatten_feature(Family)
+    if train:
+        # add a family_unkown column with 0s (as we know all the families
+        # from the train set)
+        Family['family_unknown'] = 0
+        # save family features
+        joblib.dump(Family.keys(), './vars/families_features.pkl')
+    else:
+        # we must add the families from the train set
+        # and set them to 0
+        # (that's to have the same number of features)
+        families_features = joblib.load('./vars/families_features.pkl')
+        missing_indexes = families_features[~np.in1d(families_features, Family.keys())]
+        for i in missing_indexes:
+            Family[i] = 0
+    # fill missing ages using a linear regression model
+    Age = fill_missing_ages(df, train)
+
+    # siblings and parents are ok
+    Siblings = pd.Series(df['SibSp'], name='siblings')
+    Parents = pd.Series(df['Parch'], name='parents')
+
+    # need to fill some missing fares using the median
+    Fare = fill_fares(df, train)
+
+    # get feature to know how many cabin are assigned to each passenger
+    HasCabin = fill_has_cabin(df)
+
+    # get a feature to get the cabin deck
+    CabinDeck = fill_cabin_deck(df)
+    # and flatten this
+    CabinDeck = flatten_feature(CabinDeck)
+
+    # fill the embarkment port
+    Port = fill_port(df, train)
+    # and flatten
+    Port = flatten_feature(Port)
+
+    # and survived is good as it is, only for training
+    if train:
+        Survived = pd.Series(df['Survived'], name='survived')
+
+    # feature scaling
+
+    # age needs scaling
+    if train:
+        scaler_age = preprocessing.MinMaxScaler().fit(Age)
+        joblib.dump(scaler_age, './scalers/scaler_age.pkl')
+    else:
+        scaler_age = joblib.load('./scalers/scaler_age.pkl')
+    Age = pd.Series(scaler_age.transform(Age), name='age')
+
+    # so does the fare, we also set a max at 280 to exclude outliers
+    Fare[Fare > 280] = 280
+    if train:
+        scaler_fare = preprocessing.MinMaxScaler().fit(Fare)
+        joblib.dump(scaler_fare, './scalers/scaler_fare.pkl')
+    else:
+        scaler_fare = joblib.load('./scalers/scaler_fare.pkl')
+    Fare = pd.Series(scaler_fare.transform(Fare), name='fare')
+
+    # create a new dataframe with the engineered features
+    if train:
+        new_df = pd.concat([Survived, Pclass, Title, Bracket, Family, Sex, Age, Siblings, Parents, Fare, HasCabin, Port], axis=1)
+    else:
+        # passenger ID is needed to build the submission file
+        new_df = pd.concat([df['PassengerId'], Pclass, Title, Bracket, Family, Sex, Age, Siblings, Parents, Fare, HasCabin, Port], axis=1)
 
     # save data
-    new_df.to_csv('../preprocessed_data/train.csv', sep=';', encoding='utf-8')
+    new_df.to_csv(os.path.join('.', 'output', os.path.basename(input_file)), sep=',', encoding='utf-8', index=False)
 
 
 if __name__ == '__main__':
