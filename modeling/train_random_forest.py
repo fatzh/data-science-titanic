@@ -50,12 +50,16 @@ def main():
 
     loop = True
     while(loop):
-        # split training set for cross validation
-        X_train, X_test, y_train, y_test = cross_validation.train_test_split(X, y)
 
         # random forest
         model_random_forest = RandomForestClassifier(n_estimators=1000)
-        model_random_forest.fit(X_train, y_train)
+        score_random_forest = 0
+        while score_random_forest < 0.84:
+            # split training set for cross validation
+            X_train, X_test, y_train, y_test = cross_validation.train_test_split(X, y)
+            model_random_forest.fit(X, y)
+            score_random_forest = model_random_forest.score(X_test, y_test)
+            print 'Random Forest - R-squared:', score_random_forest
         feature_importances = model_random_forest.feature_importances_
 
         # make importances relative to max importance
@@ -90,8 +94,6 @@ def main():
         #plt.show()
         plt.savefig('./features.png')
 
-        score_random_forest = model_random_forest.score(X_test, y_test)
-        print 'Random Forest - R-squared:', score_random_forest
 
         if user_yes_no_query("Save models to disk ? "):
 

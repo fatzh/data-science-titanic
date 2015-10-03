@@ -61,7 +61,7 @@ def names_to_title(df):
     # create a new dataframe
     Title = pd.Series(df['Name'].str.extract('.*,\s?\w*?\s?(\w+)\..*'), name='title')
     # group titles as per the observations
-    Title[Title.isin(['Lady', 'Countess'])] = 'Lady'
+    Title[Title.isin(['Lady', 'Countess', 'Dona'])] = 'Lady'
     Title[Title.isin(['Rev', 'Dr', 'Jonkheer', 'Major', 'Master', 'Capt', 'Col', 'Don'])] = 'Sir'
     Title[Title.isin(['Mlle', 'Ms', 'Miss'])] = 'Miss'
     Title[Title.isin(['Mrs', 'Mme'])] = 'Mrs'
@@ -157,14 +157,26 @@ def fill_has_cabin(df):
     return HasCabin.fillna('').map(lambda x: len(str(x).split()))
 
 
-def fill_cabin_deck(df):
+def fill_cabin_deck(df, train):
     '''
     returns the deck where the cabin is located.
     This is exctracting the first letter of the cabin.
     When no cabin, set emtpy
     '''
     CabinDeck = pd.Series(df['Cabin'], name='deck')
-    return CabinDeck.map(lambda x: '' if pd.isnull(x) else str(x)[0])
+    # missing decks are coded NA
+    CabinDeck = CabinDeck.map(lambda x: 'NA' if pd.isnull(x) else str(x)[0])
+    if train:
+        # we're training the model, so we'll save the decks we found
+        # and use it when preprocessing the test data
+        train_decks = pd.unique(CabinDeck)
+        joblib.dump(train_decks, './vars/train_decks.pkl')
+    else:
+        train_decks = joblib.load('./vars/train_decks.pkl')
+        # we replace the decks we don't know about by "unknown"
+        CabinDeck[~CabinDeck.isin(train_decks)] = 'unknown'
+        pass
+    return CabinDeck
 
 def fill_port(df, train):
     '''
@@ -241,9 +253,6 @@ def main():
     # and flatten
     Family = flatten_feature(Family)
     if train:
-        # add a family_unkown column with 0s (as we know all the families
-        # from the train set)
-        Family['family_unknown'] = 0
         # save family features
         joblib.dump(Family.keys(), './vars/families_features.pkl')
     else:
@@ -251,9 +260,14 @@ def main():
         # and set them to 0
         # (that's to have the same number of features)
         families_features = joblib.load('./vars/families_features.pkl')
-        missing_indexes = families_features[~np.in1d(families_features, Family.keys())]
+        missing_indexes = families_features[
+            ~np.in1d(families_features, Family.keys())
+        ]
         for i in missing_indexes:
             Family[i] = 0
+        # also unknown families are not needed, as we don't have
+        # any information on them anyway
+        Family = Family.drop('family_unknown', 1)
     # fill missing ages using a linear regression model
     Age = fill_missing_ages(df, train)
 
@@ -268,9 +282,23 @@ def main():
     HasCabin = fill_has_cabin(df)
 
     # get a feature to get the cabin deck
-    CabinDeck = fill_cabin_deck(df)
+    CabinDeck = fill_cabin_deck(df, train)
     # and flatten this
     CabinDeck = flatten_feature(CabinDeck)
+    if train:
+        # save decks that we know about
+        joblib.dump(CabinDeck.keys(), './vars/decks_features.pkl')
+    else:
+        # we must add the descks from the train set
+        decks_features = joblib.load('./vars/decks_features.pkl')
+        missing_indexes = decks_features[
+            ~np.in1d(decks_features, CabinDeck.keys())
+        ]
+        for i in missing_indexes:
+            CabinDeck[i] = 0
+            # also remove unknown decks
+            if 'deck_unknown' in CabinDeck.keys():
+                CabinDeck = CabinDeck.drop('deck_unknown', 1)
 
     # fill the embarkment port
     Port = fill_port(df, train)
@@ -301,11 +329,33 @@ def main():
     Fare = pd.Series(scaler_fare.transform(Fare), name='fare')
 
     # create a new dataframe with the engineered features
+    new_df = pd.concat([
+        Pclass,
+        Title,
+        Bracket,
+        Family,
+        Sex,
+        Age,
+        Siblings,
+        Parents,
+        Fare,
+        HasCabin,
+        CabinDeck,
+        Port
+    ], axis=1)
+
     if train:
-        new_df = pd.concat([Survived, Pclass, Title, Bracket, Family, Sex, Age, Siblings, Parents, Fare, HasCabin, Port], axis=1)
+        # add the survived feature for training
+        new_df = pd.concat([
+            Survived,
+            new_df
+        ], axis=1)
     else:
         # passenger ID is needed to build the submission file
-        new_df = pd.concat([df['PassengerId'], Pclass, Title, Bracket, Family, Sex, Age, Siblings, Parents, Fare, HasCabin, Port], axis=1)
+        new_df = pd.concat([
+            df['PassengerId'],
+            new_df
+            ], axis=1)
 
     # save data
     new_df.to_csv(os.path.join('.', 'output', os.path.basename(input_file)), sep=',', encoding='utf-8', index=False)
