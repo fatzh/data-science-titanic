@@ -196,6 +196,19 @@ def main():
     train = False
     if args.train:
         train = True
+        # create train data folders if required
+        if not os.path.exists('./vars'):
+            os.mkdir('./vars')
+        if not os.path.exists('./models'):
+            os.mkdir('./models')
+        if not os.path.exists('./encoders'):
+            os.mkdir('./encoders')
+        if not os.path.exists('./scalers'):
+            os.mkdir('./scalers')
+
+    # create output dir
+    if not os.path.exists('./output'):
+        os.mkdir('./output')
 
     # load data
     df = pd.read_csv(input_file)
