@@ -7,3 +7,5 @@ preprocessing/models
 preprocessing/output
 preprocessing/scalers
 preprocessing/vars
+preprocessing/module/test_train_info
+preprocessing/module/vars
