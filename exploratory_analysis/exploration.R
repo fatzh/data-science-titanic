@@ -54,6 +54,13 @@ g <- g + geom_bar()
 g <- g + labs(title="Survivors with brackets in their names", x="Brackets in name", y="Number of passengers") 
 g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
 
+## ---- plotNamesWithQuotes
+d <- df %>% mutate(QuotedName = grepl('\\"', Name)) %>% select(Survived, QuotedName) 
+g <- ggplot(data = d, aes(x=QuotedName, fill=Survived))
+g <- g + geom_bar() 
+g <- g + labs(title="Survivors with quotes in their names", x="Quotes in name", y="Number of passengers") 
+g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
+
 ## ---- extractTitles
 titles <- as.factor(gsub(".*,\\s?\\w*?\\s?(\\w+)\\..*", "\\1", df$Name, perl=TRUE))
 test_titles <- as.factor(gsub(".*,\\s?\\w*?\\s?(\\w+)\\..*", "\\1", df_test$Name, perl=TRUE))
@@ -76,6 +83,29 @@ d <- df %>%
 g <- ggplot(data = d, aes(x=title, y=rate))
 g <- g + geom_bar(stat='identity') 
 g <- g + labs(title="Survival rate by title", x="Title", y="Survival rate in %") 
+
+## ---- commonFirstnames
+firstname <- as.factor(gsub(".*\\. o?f? ?\\(?(\\w+).*", "\\1", df$Name, perl=TRUE))
+d <- df %>% mutate(firstname = firstname)
+common_firstnames <- d %>% 
+    group_by(firstname) %>% 
+    summarise(count=n()) %>% 
+    arrange(desc(count)) %>% 
+    filter(count > 5) %>%
+    select(firstname)
+
+## ---- plotFirstnamesSurival
+d2 <- d %>%
+    select(Survived, firstname) %>%
+    group_by(firstname, Survived) %>% 
+    filter(firstname %in% common_firstnames$firstname) %>%
+    summarise(n = n()) %>% 
+    mutate(rate = n/sum(n) * 100) %>% 
+    filter(Survived == 1)
+g <- ggplot(data = d2, aes(x=firstname, y=rate))
+g <- g + geom_bar(stat='identity') 
+g <- g + labs(title="Survival rate by firstname", x="Firstname", y="Survival rate in %") 
+g <- g + theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
 ## ---- plotSex
 d <- df %>% select(Survived, Sex)
@@ -129,6 +159,13 @@ d <- df %>%
         TicketNumber = gsub("\\D", "", Ticket)
     )
 
+## ---- plotTicketStringSurvival
+g <- ggplot(data = d, aes(x=TicketString, fill=Survived))
+g <- g + geom_bar() 
+g <- g + labs(title="Survivors by ticket string", x="Ticket string", y="Number of passengers") 
+g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
+g <- g + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
 ## ---- splitTicketsSurvival
 d %>% 
     filter(TicketString == "") %>% 
@@ -142,7 +179,9 @@ d %>%
     summarise(n = n()) %>% 
     mutate(survivalrate = n / sum(n))
 
-## --- plotTicketNumbers
+
+
+## ---- plotTicketNumbers
 d$TicketNumber <- as.numeric(d$TicketNumber)
 g <- ggplot(data = d, aes(x=TicketNumber, fill=Survived))
 g <- g + geom_bar() 
@@ -211,6 +250,45 @@ g <- ggplot(data = d, aes(x=cabinCount, fill=Survived))
 g <- g + geom_bar(binwidth=1) 
 g <- g + labs(title="Survivors by Cabin count", x="Cabin count", y="Number of passengers") 
 g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
+
+## ---- plotCabinPositionSurvival
+d <- df %>%
+    filter(Cabin != "") %>%
+    filter(grepl("\\d", Cabin)) %>%
+    mutate(Cabin = as.numeric(gsub("\\D+(\\d+) ?.*", "\\1", Cabin, perl=TRUE))) %>%
+    select(Cabin, Survived) %>%
+    arrange(Cabin)
+g <- ggplot(data = d, aes(x=Cabin, fill=Survived))
+g <- g + geom_bar(binwidth=1) 
+g <- g + labs(title="Survivors by Cabin", x="Cabin position", y="Number of passengers") 
+g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
+g <- g + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+## ---- plotCabinPositionBinsSurvival
+d <- df %>%
+    filter(Cabin != "") %>%
+    filter(grepl("\\d", Cabin)) %>%
+    mutate(Cabin = as.numeric(gsub("\\D+(\\d+) ?.*", "\\1", Cabin, perl=TRUE))) %>%
+    mutate(Position = cut(Cabin, 10)) %>%
+    select(Position, Survived) %>%
+    arrange(Position)
+g <- ggplot(data = d, aes(x=Position, fill=Survived))
+g <- g + geom_bar(binwidth=1) 
+g <- g + labs(title="Survivors by Cabin", x="Cabin position", y="Number of passengers") 
+g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
+g <- g + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+## ---- maxCabinPosition
+df %>% 
+    filter(Cabin != "") %>%
+    filter(grepl("\\d", Cabin)) %>%
+    mutate(Cabin = as.numeric(gsub("\\D+(\\d+) ?.*", "\\1", Cabin, perl=TRUE))) %>%
+    top_n(1, Cabin) %>% select(Cabin)
+df_test %>% 
+    filter(Cabin != "") %>%
+    filter(grepl("\\d", Cabin)) %>%
+    mutate(Cabin = as.numeric(gsub("\\D+(\\d+) ?.*", "\\1", Cabin, perl=TRUE))) %>%
+    top_n(1, Cabin) %>% select(Cabin)
 
 ## ---- plotPort
 d <- df %>% filter(Embarked != "") %>% select(Survived, Embarked)

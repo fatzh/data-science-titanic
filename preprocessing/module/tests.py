@@ -66,6 +66,28 @@ class TitanicPreprocessingTests(unittest.TestCase):
                     }
         self.assertEqual(expected, brackets.to_dict())
 
+    def test_preprocess_passenger_name_quotes(self):
+        '''
+        should return a boolean column with 1 for quotes in name
+        and 0 otherwise
+        '''
+        data = np.array([
+            'jean bono "zerost"',
+            'jean pierre',
+            'jean paul "first"',
+            'jean baptiste "second"',
+            'jean george',
+        ])
+        df = pd.DataFrame(pd.Series(data, name='Name'))
+        tp = Titanic(df)
+        quotes = tp.preprocess_quotes()
+        expected = {0: 1,
+                    1: 0,
+                    2: 1,
+                    3: 1,
+                    4: 0,
+                    }
+        self.assertEqual(expected, quotes.to_dict())
 
     def test_preprocess_passenger_name_title(self):
         data = np.array([
@@ -116,6 +138,47 @@ class TitanicPreprocessingTests(unittest.TestCase):
                           7: 0},
         }
         self.assertEqual(expected, titles.to_dict())
+
+    def test_preprocess_firstnames(self):
+        data = np.array([
+            'Bono, Mr. Jean (zerost)',
+            'Pierre, Mrs. Blabla',
+            'Paul, Dona. Jean (first)',
+            'Baptiste, Dr. Jean baptiste (second)',
+            'Pierre, Sir. Toto',
+            'Pierrette, Lady. Toto',
+            'PIerette, Mme. Toto',
+            'Jeanette, Countess. Toto (test)'
+        ])
+        df = pd.DataFrame(pd.Series(data, name='Name'))
+        tp = Titanic(df, save_root_dir='./test_train_info')
+        titles = tp.preprocess_firstname(limit=2)
+        expected = {
+            'firstname_Jean': {0: 1, 1: 0, 2: 1, 3: 1, 4: 0, 5: 0, 6: 0, 7: 0},
+            'firstname_Toto': {0: 0, 1: 0, 2: 0, 3: 0, 4: 1, 5: 1, 6: 1, 7: 1}
+        }
+        self.assertEqual(expected, titles.to_dict())
+
+    def test_preprocess_firstnames_test_set(self):
+        data = np.array([
+            'Bono, Mr. Jose (zerost)',
+            'Pierre, Mrs. Jose',
+            'Paul, Dona. Jose (first)',
+            'Baptiste, Dr. Jean baptiste (second)',
+            'Pierre, Sir. Toto',
+            'Pierrette, Lady. Toto',
+            'PIerette, Mme. Toto',
+            'Jeanette, Countess. Toto (test)'
+        ])
+        df = pd.DataFrame(pd.Series(data, name='Name'))
+        tp = Titanic(df, train=False, save_root_dir='./test_train_info')
+        titles = tp.preprocess_firstname(limit=2)
+        expected = {
+            'firstname_Jean': {0: 0, 1: 0, 2: 0, 3: 1, 4: 0, 5: 0, 6: 0, 7: 0},
+            'firstname_Toto': {0: 0, 1: 0, 2: 0, 3: 0, 4: 1, 5: 1, 6: 1, 7: 1}
+        }
+        self.assertEqual(expected, titles.to_dict())
+
 
     def test_preprocess_passenger_sex(self):
         data = np.array([
@@ -269,6 +332,55 @@ class TitanicPreprocessingTests(unittest.TestCase):
             'cabin_deck_D': {0: 0, 1: 0, 2: 0, 3: 0, 4: 1, 5: 1},
         }
         self.assertEqual(expected, cabin_deck.to_dict())
+
+    def test_preprocess_cabin_position(self):
+        data = np.array(['C45', 'B34', 'F2', 'R90', 'R', 'T100 D89', None, 'F T45'])
+        df = pd.DataFrame(data, columns=['Cabin'])
+        tp = Titanic(df, save_root_dir='./test_train_info')
+        cabin_positions = tp.preprocess_cabin_position(bins=2)
+        # for this test, we have a range of 100 and 2 bins, so all cabins below
+        # 50 go into the bin 0, the others in bin 1
+        expected = {
+            'cabin_position_0': {0: 1, 1: 1, 2: 1, 3: 0, 4: 0, 5: 0, 6: 0, 7: 1},
+            'cabin_position_1': {0: 0, 1: 0, 2: 0, 3: 1, 4: 0, 5: 1, 6: 0, 7: 0}
+        }
+        self.assertEqual(expected, cabin_positions.to_dict())
+
+    def test_preprocess_cabin_position_test_set(self):
+        data = np.array(['C45', 'B34', 'F2', 'R90', 'R', 'T100 D89', None, 'F T45'])
+        df = pd.DataFrame(data, columns=['Cabin'])
+        tp = Titanic(df, train=False, save_root_dir='./test_train_info')
+        cabin_positions = tp.preprocess_cabin_position(bins=2)
+        # for this test, we have a range of 100 and 2 bins, so all cabins below
+        # 50 go into the bin 0, the others in bin 1
+        expected = {
+            'cabin_position_0': {0: 1, 1: 1, 2: 1, 3: 0, 4: 0, 5: 0, 6: 0, 7: 1},
+            'cabin_position_1': {0: 0, 1: 0, 2: 0, 3: 1, 4: 0, 5: 1, 6: 0, 7: 0}
+        }
+        self.assertEqual(expected, cabin_positions.to_dict())
+
+
+    def test_preprocess_cabin_count(self):
+        data = np.array(['B45 B34', None, 'C89', 'D23 D90 D74'])
+        df = pd.DataFrame(data, columns=['Cabin'])
+        tp = Titanic(df)
+        cabin_count = tp.preprocess_cabin_count()
+        expected = {0: 2,
+                    1: 0,
+                    2: 1,
+                    3: 3}
+        self.assertEqual(expected, cabin_count.to_dict())
+
+    def test_preprocess_port(self):
+        data = np.array(['C', 'S', 'Q', 'C', 'C', None, 'S', 'Q', 'C'])
+        df = pd.DataFrame(data, columns=['Embarked'])
+        tp = Titanic(df)
+        port = tp.preprocess_port()
+        expected = {'port_C': {0: 1, 1: 0, 2: 0, 3: 1, 4: 1, 5: 0, 6: 0, 7: 0, 8: 1},
+                    'port_Q': {0: 0, 1: 0, 2: 1, 3: 0, 4: 0, 5: 0, 6: 0, 7: 1, 8: 0},
+                    'port_S': {0: 0, 1: 1, 2: 0, 3: 0, 4: 0, 5: 0, 6: 1, 7: 0, 8: 0},
+                    }
+        self.assertEqual(expected, port.to_dict())
 
 
 

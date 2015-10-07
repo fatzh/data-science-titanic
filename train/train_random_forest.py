@@ -40,8 +40,8 @@ def main():
 
 
     # split X and y
-    y = df['survived']
-    X = df.drop('survived', 1)
+    y = df['Survived']
+    X = df.drop('Survived', 1)
 
     # get the feature list
     features_list = X.columns.values

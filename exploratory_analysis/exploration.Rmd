@@ -100,6 +100,15 @@ g
 
 Well, it looks like if you have an additional name in brackets, it indeed increase your probability of surviving from the disaster. That's a feature we can use in our model.
 
+Also some names have a name in quotes, maybe something to look at.
+
+```{r}
+<<plotNamesWithQuotes>>
+g
+```
+
+Indeed, with quotes, the survival rate is higher than without.
+
 Another information from the name could be the title. Let's extract them first:
 
 ```{r}
@@ -131,6 +140,16 @@ g
 ```
 
 We can see that the survival rate varies by title. `Mr` died the most, and the ``Lady` survived. So this would also be an interesting feature to include in our model. Also... with the little test trick, we can hope that our 'Dona' will survive our model.
+
+We can also look at the firstnames, that may be an indication of the social status.
+
+```{r}
+<<commonFirstnames>>
+<<plotFirstnamesSurival>>
+g
+```
+
+Here we took firstnames that appear at least 5 times (less than that, it's probabely not relevant), and plot the survival rate. We can see that Margarets, Elizabeths and Anna have 100% survival rate, whereas Arthurs, Johan or Joseph are a lot less lucky. We can add this to our features.
 
 ### Passenger sex
 
@@ -215,9 +234,8 @@ How many families do we have:
 
 ```{r}
 <<splitFamilyNames>>
-#count(unique(d$familyname))$n
-#dim(d)
-#d %>% filter(SibSp > 0 | Parch > 0) %>% count
+length(levels(d$familyname))
+d %>% filter(SibSp > 0 | Parch > 0) %>% count
 ```
 
 So we can split the 891 passengers into 667 families. 354 of which are "real" families and not lonesome travellers. We can create new features using this information.
@@ -233,7 +251,7 @@ d %>% group_by(familyname) %>% summarise(no = length(familyname)) %>% filter(no 
 Ok, looks like we have 9 Andersson on board, let's look at this family:
 
 ```{r}
-d %>% filter(familyname == 'Andersson') %>% select(Name, Age, Parch, SibSp, Cabin, Embaked) %>% arrange(desc(Age))
+d %>% filter(familyname == 'Andersson') %>% select(Name, Age, Parch, SibSp, Cabin, Embarked) %>% arrange(desc(Age))
 ```
 
 We have the parents first, they have 5 children on board. Mrs Anders Johan is traveling alone and does not belong to this family. Then we have 6 kids. 6? They're only suppose to have 4 siblings, which would make  family of 7 (5 kids and 2 parents).
@@ -242,7 +260,7 @@ In the test set we have 2 Andersson's:
 
 ```{r}
 dt <- df_test %>% mutate('familyname' = as.factor(gsub("^([^,]*),.*", "\\1", Name, perl=TRUE)))
-dt %>% filter(familyname == 'Andersson') %>% select(Name, Age, Parch, SibSp, Cabin, Embaked)
+dt %>% filter(familyname == 'Andersson') %>% select(Name, Age, Parch, SibSp, Cabin, Embarked)
 ```
 
 That's another lonesome traveller (Mr Johan Samuel) and another one with also 4 siblings/2 parents, and she's as old as the parents we thought we identified.
@@ -275,7 +293,14 @@ This feature is a bit more difficult to analyse. The format is not well defined,
 unique(d$TicketString)
 ```
 
+That's going to be difficult to use... let's see the survival rates for each reference that we have.
 
+```{r}
+<<plotTicketStringSurvival>>
+g
+```
+
+I'm not sure I'll use this feature in my model.
 
 Maybe check only the survival rate difference between passenger with letters in their tickets against passenger with only numbers:
 
@@ -342,12 +367,34 @@ g
 dd
 ```
 
+If the letter indicates the floor or deck, maybe the number indicates the position of the cabin.
+
+```{r}
+<<plotCabinPositionSurvival>>
+g
+```
+
+We can maybe see a pattern here, with chunks of full survival and chunks of full not-survival. It's not a linear progression, so we can group the position into bins to make it easier to use.
+
+```{r}
+<<plotCabinPositionBinsSurvival>>
+g
+```
+
+Ok that can be used in the model. We would need to know the maximal cabin number from the test set as well to make sure we can correctly classify the cabins in the bins.
+
+```{r}
+<<maxCabinPosition>>
+```
+
 Maybe just the fact to have a cabin number means you have more chance to survive ?
 
 ```{r}
 <<cabinSurvival>>
 dd
 ```
+
+ok, we don't have any cabin number > 148, so we can use the train set range to create the bins.
 
 Well looks like having a cabin number gives you a very high chance of survival (66%) compard to not having one (30%). So we can probabely change this feature to a simple boolean value.
 

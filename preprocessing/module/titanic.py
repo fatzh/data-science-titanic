@@ -26,8 +26,14 @@ class Titanic():
     # families in the train set
     train_families = None
 
+    # firstnames in the train set
+    train_firstnames = None
+
     # cabin decks in the train set
     train_cabin_decks = None
+
+    # bins for cabin positions
+    train_cabin_positions_bins = None
 
     # mean fare per passenger class
     mean_fares = None
@@ -40,8 +46,10 @@ class Titanic():
         self.age_estimator_path = os.path.join(save_root_dir, 'models/age_regressor.pkl')
         self.age_scaler_path = os.path.join(save_root_dir, 'scalers/scaler_age.pkl')
         self.train_families_path = os.path.join(save_root_dir, 'vars/train_families.pkl')
+        self.train_firstnames_path = os.path.join(save_root_dir, 'vars/train_firstnames.pkl')
         self.mean_fares_path = os.path.join(save_root_dir, 'vars/mean_fares.pkl')
         self.train_cabin_decks_path = os.path.join(save_root_dir, 'vars/train_cabin_decks.pkl')
+        self.train_cabin_positions_bins_path = os.path.join(save_root_dir, 'vars/train_cabin_positions_bins.pkl')
 
         # create dirs
         if not os.path.exists(os.path.join(save_root_dir, 'models')):
@@ -64,7 +72,12 @@ class Titanic():
             try:
                 self.train_families = joblib.load(self.train_families_path)
             except IOError:
-                print "can not find families. Re-run preprocessing on train set."
+                print "Can not find families. Re-run preprocessing on train set."
+            try:
+                self.train_firstnames = joblib.load(self.train_firstnames_path)
+            except IOError:
+                print "Can not find train firstnames. Re-run preprocessing on train set."
+
             try:
                 self.mean_fares = joblib.load(self.mean_fares_path)
             except IOError:
@@ -73,6 +86,10 @@ class Titanic():
                 self.train_cabin_decks = joblib.load(self.train_cabin_decks_path)
             except IOError:
                 print "Can not find the cabin decks. Re-run preprocessing on train set."
+            try:
+                self.train_cabin_positions_bins = joblib.load(self.train_cabin_positions_bins_path)
+            except IOError:
+                print "Can not find the cabin position bins. Re-run preprocessing on train set."
 
     def preprocess_classes(self):
         '''
@@ -86,21 +103,59 @@ class Titanic():
         '''
         return pd.Series(self.df['Name'].map(lambda x: '(' in x), name='bracket').map(int)
 
+    def preprocess_quotes(self):
+        '''
+        returns a boolean 1 for auotes, 0 otherwise
+        '''
+        return pd.Series(self.df['Name'].map(lambda x: '"' in x), name='quotes').map(int)
+
     def preprocess_title(self):
         '''
         extract title from name
         and flatten it.
 
-        Also fills in the most common values
+        also fills in the most common values
         '''
         # create a new dataframe
-        Title = pd.Series(self.df['Name'].str.extract('.*,\s?\w*?\s?(\w+)\..*'), name='title')
+        title = pd.Series(self.df['Name'].str.extract('.*,\s?\w*?\s?(\w+)\..*'), name='title')
         # group titles as per the observations
-        Title[Title.isin(['Lady', 'Countess', 'Dona'])] = 'Lady'
-        Title[Title.isin(['Rev', 'Dr', 'Jonkheer', 'Major', 'Master', 'Capt', 'Col', 'Don'])] = 'Sir'
-        Title[Title.isin(['Mlle', 'Ms', 'Miss'])] = 'Miss'
-        Title[Title.isin(['Mrs', 'Mme'])] = 'Mrs'
-        return pd.get_dummies(Title, prefix='title').applymap(int)
+        title[title.isin(['Lady', 'Countess', 'Dona'])] = 'Lady'
+        title[title.isin(['Rev', 'Dr', 'Jonkheer', 'Major', 'Master', 'Capt', 'Col', 'Don'])] = 'Sir'
+        title[title.isin(['Mlle', 'Ms', 'Miss'])] = 'Miss'
+        title[title.isin(['Mrs', 'Mme'])] = 'Mrs'
+        return pd.get_dummies(title, prefix='title').applymap(int)
+
+    def preprocess_firstname(self, limit=5):
+        '''
+        extract firstname from name
+        and flatten it.
+
+        only consider the firstname that occur more than 'limit' (default 5)
+        '''
+        # create a new dataframe
+        firstnames = pd.Series(self.df['Name'].str.extract('.*\.\so?f?\s?\(?(\w+)'), name='firstname')
+        df2 = pd.concat([self.df['Name'], firstnames], axis=1)
+        # save the firstnames from training set
+        if self.train:
+            df2['count'] = df2.groupby(['firstname']).transform('count')
+            # ignore firstname that occur less than 'limit' times
+            df2.loc[df2['count'] < limit,'firstname'] = 0
+            firstnames = pd.get_dummies(df2['firstname'], prefix='firstname').applymap(int)
+            firstnames.drop('firstname_0', axis=1, inplace=1)
+            self.train_firstnames = firstnames.columns.tolist()
+            joblib.dump(self.train_firstnames, self.train_firstnames_path)
+        else:
+            firstnames = pd.get_dummies(df2['firstname'], prefix='firstname').applymap(int)
+            # remove unknown firstnames
+            for f in firstnames.columns:
+                if f not in self.train_firstnames:
+                    firstnames.drop(f, axis=1, inplace=1)
+            # add known firstnames (we need the same features on train and test
+            # set)
+            for f in self.train_firstnames:
+                if f not in firstnames.columns:
+                    firstnames[f] = 0
+        return firstnames
 
     def preprocess_sex(self):
         '''
@@ -114,13 +169,19 @@ class Titanic():
         '''
         if self.train:
             # build estimators and other variables
-            self.age_estimator = self.build_age_regression_model(self.df)
+            self.age_estimator = self.build_age_regression_model()
             joblib.dump(self.age_estimator, self.age_estimator_path)
         # for the age, we need to set a value when Nan...
         # use the estimator to build an array of missing ages
-        ages = self.age_estimator.predict(self.df[['Sex', 'Fare', 'Pclass']][self.df['Age'].isnull()])
+
+        # first get the input data for the estimator
+        input_df = self.prepare_age_regression_data().drop('Age', axis=1)
+        # and we just need the lines where the age is not known
+        input_df = input_df[self.df['Age'].isnull()]
+        ages = self.age_estimator.predict(input_df)
+        # get indexes for missing ages
         indexes = self.df[['Sex', 'Fare', 'Pclass']][self.df['Age'].isnull()].index
-        # convert ages array to panda serie
+        # convert ages array to panda serie, and set the indexes accordingly
         fill_ages = pd.Series(np.array(ages), np.array(indexes))
         # and fill the missing values
         Age = pd.Series(self.df['Age'], name='age')
@@ -141,13 +202,26 @@ class Titanic():
         based on the sex/class and fare paid by the
         passenger
         '''
-        df_age = pd.DataFrame(self.df[['Sex', 'Fare', 'Pclass', 'Age']][self.df.Age.notnull()])
-        df_age_data = df_age[['Sex', 'Fare', 'Pclass']]
+        # first need to convert class/sex to int
+        temp_df = self.prepare_age_regression_data()
+        # exclude missing ages for training
+        df_age = pd.DataFrame(temp_df[temp_df.Age.notnull()])
+        df_age_data = df_age.drop('Age', axis=1)
         df_age_target = df_age['Age']
         regressor = LinearRegression()
         regressor.fit(df_age_data, df_age_target)
         # save regression model to disk
         return regressor
+
+    def prepare_age_regression_data(self):
+        '''
+        we must preprocess the sex and classes in order
+        to train the regression model for the missing ages
+        '''
+        sex = self.preprocess_sex()
+        classes = self.preprocess_classes()
+        fare = self.preprocess_fares()
+        return pd.concat([sex, classes, fare, self.df['Age']], axis=1)
 
     def preprocess_family_size(self):
         '''
@@ -274,3 +348,49 @@ class Titanic():
                 if deck not in cabin_deck.columns:
                     cabin_deck[deck] = 0
         return cabin_deck
+
+    def preprocess_cabin_position(self, bins=10):
+        '''
+        extracts the number from the cabin and group them into
+        10 bins
+        '''
+        # extract the cabin number and convert to int
+        cabins = pd.Series(self.df['Cabin'])
+        # we just work on cabins with a number
+        cabins[cabins.map(lambda x: str(x).isalpha())] = None
+        cabin_positions = cabins[cabins.notnull()].apply(self.fill_cabin_position).apply(int)
+        # merge new values
+        cabins.update(cabin_positions)
+        # cut into bins, labels are indexed from 0 to bins-1
+        if self.train:
+            # create the bins and save them for the test set
+            cabin_positions, self.train_cabin_positions_bins = pd.cut(cabins, bins, labels=range(bins), retbins=True)
+            joblib.dump(self.train_cabin_positions_bins, self.train_cabin_positions_bins_path)
+        else:
+            cabin_positions = pd.cut(cabins, self.train_cabin_positions_bins, labels=range(bins))
+        return pd.get_dummies(cabin_positions, prefix='cabin_position').applymap(int)
+
+
+    def fill_cabin_position(self, x):
+        regex_match = re.compile("(\d+).*?").search(x)
+        try:
+            return regex_match.group()
+        except AttributeError:
+            return 0
+
+
+    def preprocess_cabin_count(self):
+        '''
+        returns a column with the number of cabin per passenger
+        '''
+        cabin_count = pd.Series(self.df['Cabin'], name='cabin_count')
+        return cabin_count.map(lambda x: 0 if pd.isnull(x) else len(str(x).split(' ')))
+
+    def preprocess_port(self):
+        '''
+        return boolean values for the port of embarkment.
+
+        Empty/Null values are ignored
+        '''
+        port = pd.Series(self.df['Embarked'], name='port')
+        return pd.get_dummies(port, prefix='port').applymap(int)
