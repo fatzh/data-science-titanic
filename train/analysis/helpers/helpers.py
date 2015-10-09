@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
 from sklearn.learning_curve import learning_curve
 from sklearn import cross_validation
-from sklearn.metrics import SCORERS
 import numpy as np
 import matplotlib.pyplot as plt
 
 
 def plot_learning_curve(estimator, X, y, ylim=None, cv=None,
-                        n_jobs=1, train_sizes=np.linspace(.1, 1.0, 5)):
+                        n_jobs=1, train_sizes=np.linspace(.1, 1.0, 10)):
     """
     source http://scikit-learn.org/stable/auto_examples/plot_learning_curve.html
     Generate a simple plot of the test and traning learning curve.
