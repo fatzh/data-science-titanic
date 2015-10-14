@@ -80,7 +80,7 @@ passengers in our dataset survived the disaster:
     g <- g + labs(title="Titanic survivors", x='', y='')
     g
 
-![](exploration_files/figure-markdown_strict/unnamed-chunk-4-1.png)
+![](/sites/default/files/basic_page/titanic-4-1.png)
 
 We have 342 survivors and 549 passengers who didn't make it. That's a
 38.38% survivial rate.
@@ -117,7 +117,7 @@ repartition.
 
     g
 
-![](exploration_files/figure-markdown_strict/unnamed-chunk-6-1.png)
+![](/sites/default/files/basic_page/titanic-6-1.png)
 
 We can see that the majority of the passengers are in the 3rd class.
 Let's see among each class, how many passenger survived the disaster.
@@ -129,8 +129,8 @@ Let's see among each class, how many passenger survived the disaster.
     g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
     g
 
-![](exploration_files/figure-markdown_strict/unnamed-chunk-7-1.png)
-
+![](/sites/default/files/basic_page/titanic-7-1.png)
+/sites/default/files/basic_page/titanic
 We can see that the majority of the passengers in first class survived,
 so did about half of those in second class. The majority of the losses
 come from the 3rd class.
@@ -155,7 +155,7 @@ an indicator of the social status of the passenger. Let's have a look.
     g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
     g
 
-![](exploration_files/figure-markdown_strict/unnamed-chunk-9-1.png)
+![](/sites/default/files/basic_page/titanic-9-1.png)
 
 Well, it looks like if you have an additional name in brackets, it
 indeed increase your probability of surviving from the disaster. That's
@@ -170,7 +170,7 @@ Also some names have a name in quotes, maybe something to look at.
     g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
     g
 
-![](exploration_files/figure-markdown_strict/unnamed-chunk-10-1.png)
+![](/sites/default/files/basic_page/titanic-10-1.png)
 
 Indeed, with quotes, the survival rate is higher than without.
 
@@ -238,7 +238,7 @@ Here are the survival rates:
     g <- g + labs(title="Survival rate by title", x="Title", y="Survival rate in %") 
     g
 
-![](exploration_files/figure-markdown_strict/unnamed-chunk-14-1.png)
+![](/sites/default/files/basic_page/titanic-14-1.png)
 
 We can see that the survival rate varies by title. `Mr` died the most,
 and the \``Lady` survived. So this would also be an interesting feature
@@ -269,7 +269,7 @@ social status.
     g <- g + theme(axis.text.x = element_text(angle = 90, hjust = 1))
     g
 
-![](exploration_files/figure-markdown_strict/unnamed-chunk-15-1.png)
+![](/sites/default/files/basic_page/titanic-15-1.png)
 
 Here we took firstnames that appear at least 5 times (less than that,
 it's probabely not relevant), and plot the survival rate. We can see
@@ -288,7 +288,7 @@ Male or female, does it have a correlation with the survival rate ?
     g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
     g
 
-![](exploration_files/figure-markdown_strict/unnamed-chunk-16-1.png)
+![](/sites/default/files/basic_page/titanic-16-1.png)
 
 Ok, looks like female have more chance to survive. This is definitely an
 important feature for our model.
@@ -307,7 +307,7 @@ and make sure we exclude the NA's values from this analysis.
     g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
     g
 
-![](exploration_files/figure-markdown_strict/unnamed-chunk-18-1.png)
+![](/sites/default/files/basic_page/titanic-18-1.png)
 
 The passenger age seems a very important feature. We will have to decide
 a method for filling in the missing values. A simple linear regression
@@ -326,7 +326,7 @@ impact its survival rate ?
     g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
     g
 
-![](exploration_files/figure-markdown_strict/unnamed-chunk-19-1.png)
+![](/sites/default/files/basic_page/titanic-19-1.png)
 
 It looks like the more siblings on board, the less likely the passenger
 will survive.
@@ -340,7 +340,7 @@ will survive.
     g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
     g
 
-![](exploration_files/figure-markdown_strict/unnamed-chunk-20-1.png)
+![](/sites/default/files/basic_page/titanic-20-1.png)
 
 This doesn't look like a very important feature. Maybe that can be used
 to derive features, copling with the sex for example. Here are the
@@ -570,7 +570,7 @@ each reference that we have.
     g <- g + theme(axis.text.x = element_text(angle = 90, hjust = 1))
     g
 
-![](exploration_files/figure-markdown_strict/unnamed-chunk-30-1.png)
+![](/sites/default/files/basic_page/titanic-30-1.png)
 
 I'm not sure I'll use this feature in my model.
 
@@ -614,7 +614,7 @@ convert it to a numeric and plot the survival rate:
     g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
     g
 
-![](exploration_files/figure-markdown_strict/unnamed-chunk-32-1.png)
+![](/sites/default/files/basic_page/titanic-32-1.png)
 
 Here we can see that ticket holders with a small ticket numbers are
 among the vast majority of the passengers. But this doesn't help. Maybe
@@ -629,7 +629,7 @@ location on the boat.
     g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
     g
 
-![](exploration_files/figure-markdown_strict/unnamed-chunk-33-1.png)
+![](/sites/default/files/basic_page/titanic-33-1.png)
 
 It looks like the first digit is actually relevant. The lower this
 number, the higher the survival rate.
@@ -655,7 +655,7 @@ needed. FOr example, using the mean of the class fare, that would work.
     g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
     g
 
-![](exploration_files/figure-markdown_strict/unnamed-chunk-34-1.png)
+![](/sites/default/files/basic_page/titanic-34-1.png)
 
 Also 3 passengers paid more than 400, and they all survived. Let's look
 in more details at the lower fares.
@@ -666,7 +666,7 @@ in more details at the lower fares.
     g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
     g
 
-![](exploration_files/figure-markdown_strict/unnamed-chunk-35-1.png)
+![](/sites/default/files/basic_page/titanic-35-1.png)
 
 Clearly, a big proportion of the lower fares died. We cannot ignore this
 feature for our model, maybe we can fill in the missing values by using
@@ -694,7 +694,7 @@ meaning of the letter) and the survival rate for each floor.
     g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
     g
 
-![](exploration_files/figure-markdown_strict/unnamed-chunk-37-1.png)
+![](/sites/default/files/basic_page/titanic-37-1.png)
 
     dd <- d %>% 
         group_by(Cabin, Survived) %>% 
@@ -734,7 +734,7 @@ the position of the cabin.
     g <- g + theme(axis.text.x = element_text(angle = 90, hjust = 1))
     g
 
-![](exploration_files/figure-markdown_strict/unnamed-chunk-39-1.png)
+![](/sites/default/files/basic_page/titanic-39-1.png)
 
 We can maybe see a pattern here, with chunks of full survival and chunks
 of full not-survival. It's not a linear progression, so we can group the
@@ -754,7 +754,7 @@ position into bins to make it easier to use.
     g <- g + theme(axis.text.x = element_text(angle = 90, hjust = 1))
     g
 
-![](exploration_files/figure-markdown_strict/unnamed-chunk-40-1.png)
+![](/sites/default/files/basic_page/titanic-40-1.png)
 
 Ok that can be used in the model. We would need to know the maximal
 cabin number from the test set as well to make sure we can correctly
@@ -816,7 +816,7 @@ Also the number of cabin may matter:
     g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
     g
 
-![](exploration_files/figure-markdown_strict/unnamed-chunk-43-1.png)
+![](/sites/default/files/basic_page/titanic-43-1.png)
 
 Indeed, the more cabins, the more chance of survival.
 
@@ -841,7 +841,7 @@ Let's look at the survival rate per port:
     g <- g + scale_fill_discrete(name="Survived", labels=c("no", "yes"))
     g
 
-![](exploration_files/figure-markdown_strict/unnamed-chunk-45-1.png)
+![](/sites/default/files/basic_page/titanic-45-1.png)
 
 It's not really evident if the port of embarkation has an impact on the
 passenger's faith. Looks like better odds for passenger coming from

@@ -10,3 +10,5 @@ preprocessing/vars
 preprocessing/module/test_train_info
 preprocessing/module/vars
 train/models
+*.pyc
+train/analysis/model/*

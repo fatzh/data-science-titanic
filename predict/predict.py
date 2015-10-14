@@ -45,8 +45,7 @@ def main():
 
     # get prediction
     predictions = pd.Series(model.predict(df), name='Survived')
-    probas = model.predict_proba(df)
-    import ipdb; ipdb.set_trace() ## BREAKPOINT
+#    probas = model.predict_proba(df)
 
     # create a new dataframe for the results
     result = pd.concat([passenger_ids, predictions], axis=1)

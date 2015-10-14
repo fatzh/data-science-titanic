@@ -13,6 +13,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", help="Input file to parse (CSV)")
     parser.add_argument("--train", help="Train action, this will create models and encoders.", action="store_true")
+    parser.add_argument("--addfeatures", help="Add computed features", action="store_true")
     args = parser.parse_args()
 
     if args.input is None:
@@ -51,6 +52,11 @@ def main():
         tp.preprocess_cabin_count(),
         tp.preprocess_port()
     ], axis=1)
+
+    if args.addfeatures:
+        # compute additional numeric features
+        numerics = new_df.loc[:, ['age', 'fare', 'cabin_count', 'family_size']]
+        tp.compute_numeric_features(numerics)
 
     if train:
         # add the survived feature for training

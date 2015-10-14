@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 
 def plot_learning_curve(estimator, X, y, ylim=None, cv=None,
-                        n_jobs=1, train_sizes=np.linspace(.1, 1.0, 10)):
+                        n_jobs=1, train_sizes=np.linspace(.1, 1.0, 10), title="Learning Curves"):
     """
     source http://scikit-learn.org/stable/auto_examples/plot_learning_curve.html
     Generate a simple plot of the test and traning learning curve.
@@ -36,7 +36,7 @@ def plot_learning_curve(estimator, X, y, ylim=None, cv=None,
         Number of jobs to run in parallel (default 1).
     """
     plt.figure()
-    plt.title("Learning Curves")
+    plt.title(title)
     if ylim is not None:
         plt.ylim(*ylim)
     plt.xlabel("Training examples")
@@ -58,12 +58,14 @@ def plot_learning_curve(estimator, X, y, ylim=None, cv=None,
     plt.fill_between(train_sizes, test_errors_mean - test_errors_std,
                      test_errors_mean + test_errors_std, alpha=0.1, color="g")
     plt.plot(train_sizes, train_errors_mean, 'o-', color="r",
-             label="Training score")
+             label="Training error")
     plt.plot(train_sizes, test_errors_mean, 'o-', color="g",
-             label="Cross-validation score")
+             label="Cross-validation error")
 
     plt.legend(loc="best")
     return plt
+
+
 
 def plot_features_curves(estimator, X, y, feature_list, split=10):
     """

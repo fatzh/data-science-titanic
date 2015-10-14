@@ -20,9 +20,6 @@ class Titanic():
     # linear model to fill in missing ages
     age_estimator = None
 
-    # age scaler
-    age_scaler = None
-
     # families in the train set
     train_families = None
 
@@ -44,7 +41,6 @@ class Titanic():
         self.save_root_dir = save_root_dir
 
         self.age_estimator_path = os.path.join(save_root_dir, 'models/age_regressor.pkl')
-        self.age_scaler_path = os.path.join(save_root_dir, 'scalers/scaler_age.pkl')
         self.train_families_path = os.path.join(save_root_dir, 'vars/train_families.pkl')
         self.train_firstnames_path = os.path.join(save_root_dir, 'vars/train_firstnames.pkl')
         self.mean_fares_path = os.path.join(save_root_dir, 'vars/mean_fares.pkl')
@@ -56,8 +52,6 @@ class Titanic():
             os.makedirs(os.path.join(save_root_dir, 'models'))
         if not os.path.exists(os.path.join(save_root_dir, 'vars')):
             os.makedirs(os.path.join(save_root_dir, 'vars'))
-        if not os.path.exists(os.path.join(save_root_dir, 'scalers')):
-            os.makedirs(os.path.join(save_root_dir, 'scalers'))
 
         if not train:
             # load estimators and other variables
@@ -65,10 +59,6 @@ class Titanic():
                 self.age_estimator = joblib.load(self.age_estimator_path)
             except IOError:
                 print "Can not find age regression model. Re-run preprocessing on train set."
-            try:
-                self.scaler_age = joblib.load(self.age_scaler_path)
-            except IOError:
-                print "Can not find the age scale. Re-run preprocessing on train set."
             try:
                 self.train_families = joblib.load(self.train_families_path)
             except IOError:
@@ -105,7 +95,7 @@ class Titanic():
 
     def preprocess_quotes(self):
         '''
-        returns a boolean 1 for auotes, 0 otherwise
+        returns a boolean 1 for quotes, 0 otherwise
         '''
         return pd.Series(self.df['Name'].map(lambda x: '"' in x), name='quotes').map(int)
 
@@ -186,13 +176,6 @@ class Titanic():
         # and fill the missing values
         Age = pd.Series(self.df['Age'], name='age')
         Age.fillna(fill_ages, inplace=True)
-
-        # scale age
-        if self.train:
-            self.scaler_age = preprocessing.MinMaxScaler().fit(Age)
-            joblib.dump(self.scaler_age, self.age_scaler_path)
-
-        Age = pd.Series(self.scaler_age.transform(Age), name='age')
 
         return Age
 
@@ -394,3 +377,30 @@ class Titanic():
         '''
         port = pd.Series(self.df['Embarked'], name='port')
         return pd.get_dummies(port, prefix='port').applymap(int)
+
+    def compute_numeric_features(self, numerics):
+        '''
+        compute numeric features to add/substract/multiply/divide
+
+        '''
+        X = pd.DataFrame()
+        # for each pair of variables, determine which mathmatical operators to use based on redundancy
+        for i in range(0, numerics.columns.size-1):
+            for j in range(0, numerics.columns.size-1):
+                col1 = str(numerics.columns.values[i])
+                col2 = str(numerics.columns.values[j])
+                # multiply fields together (we allow values to be squared)
+                if i <= j:
+                    name = col1 + "*" + col2
+                    X = pd.concat([X, pd.Series(numerics.iloc[:,i] * numerics.iloc[:,j], name=name)], axis=1)
+                # add fields together
+                if i < j:
+                    name = col1 + "+" + col2
+                    X = pd.concat([X, pd.Series(numerics.iloc[:,i] + numerics.iloc[:,j], name=name)], axis=1)
+                # divide and subtract fields from each other
+                if not i == j:
+                    name = col1 + "/" + col2
+                    X = pd.concat([X, pd.Series(numerics.iloc[:,i] / numerics.iloc[:,j], name=name)], axis=1)
+                    name = col1 + "-" + col2
+                    X = pd.concat([X, pd.Series(numerics.iloc[:,i] - numerics.iloc[:,j], name=name)], axis=1)
+        return X
