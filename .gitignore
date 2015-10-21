@@ -12,3 +12,7 @@ preprocessing/module/vars
 train/models
 *.pyc
 train/analysis/model/*
+model_analysis/figure
+model_analysis/figures
+model_analysis/kaggle
+model_analysis/predictions

@@ -1,0 +1,65 @@
+---
+title: "F1 analysis"
+author: "Fabrice Tereszkiewciz"
+date: "14 Oct 2015"
+output: html_document
+---
+
+```{r global_options, include=FALSE}
+library(knitr)
+read_chunk('./test_results.R')
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```
+
+```{r, include=FALSE}
+<<loadPackages>>
+```
+
+We can load the data into R and make sure we have the right dimensions.
+
+```{r}
+<<loadData>>
+dim(df)
+```
+
+That's good, we have all our features and the survival status as well as the predicted survival status.
+
+We can also easily see the confusion matrix for this dataset.
+
+```{r}
+table(df$Survived, df$Predicted)
+```
+
+Here we have the prediction as columns and the truth as rows. This tables tells us that:
+
+- the model has correctly classified 124 victims and 66 survivors
+- the model has predicted 15 survivors who actually died
+- the model has missed 18 survivors
+
+We can split our 3 groups of interests and see if we can extract some patterns.
+
+```{r}
+<<splitDataSet>>
+```
+
+An easy way is to plot the means of each variables for each group. As most of the data are boolean, the means are mostly going ot be between 0 and 1. Let's rescale the other features to fit between 0 and 1, based on the range on the whole dataset.
+
+```{r}
+<<scale>>
+```
+
+And plot the means of each variables.
+
+```{r, fig.width=12, fig.height=12}
+<<plotMeans>>
+g_means
+```
+
+I ommited the feature names from this plot, as there are too many to read anyway, but the plot itself tells that the dataset seem fairly well balanced, it's not like if we would see a huge difference in one of the four categories.
+
+We can further investigate by looking only at the most important features (we extracted the list previously).
+
+```{r, fig.width=12, fig.height=12}
+<<plotMeansImportant>>
+g_important
+```

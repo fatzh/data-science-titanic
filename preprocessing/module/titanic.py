@@ -177,7 +177,7 @@ class Titanic():
         Age = pd.Series(self.df['Age'], name='age')
         Age.fillna(fill_ages, inplace=True)
 
-        return Age
+        return Age.map(float)
 
     def build_age_regression_model(self):
         '''
@@ -211,7 +211,7 @@ class Titanic():
         returns a Serie with the family size
         equals to the number of Parch + number of SibSp + 1
         '''
-        return pd.Series(self.df['Parch'] + self.df['SibSp'] + 1, name='family_size')
+        return pd.Series(self.df['Parch'] + self.df['SibSp'] + 1., name='family_size').map(float)
 
 
     def preprocess_families(self):
@@ -302,7 +302,7 @@ class Titanic():
         t = pd.concat([self.df['Pclass'], Fare], axis=1)
         for index, row in t[(Fare == 0) | (pd.isnull(Fare))].iterrows():
             Fare.loc[index] = self.mean_fares[t.loc[index, 'Pclass']]
-        return Fare
+        return Fare.map(float)
 
     def preprocess_cabin_deck(self):
         '''
@@ -338,7 +338,8 @@ class Titanic():
         10 bins
         '''
         # extract the cabin number and convert to int
-        cabins = pd.Series(self.df['Cabin'])
+        # important ! copy the data in order to avoid update on main dataset
+        cabins = pd.Series(self.df['Cabin'].copy(), name='cabins')
         # we just work on cabins with a number
         cabins[cabins.map(lambda x: str(x).isalpha())] = None
         cabin_positions = cabins[cabins.notnull()].apply(self.fill_cabin_position).apply(int)
@@ -367,7 +368,7 @@ class Titanic():
         returns a column with the number of cabin per passenger
         '''
         cabin_count = pd.Series(self.df['Cabin'], name='cabin_count')
-        return cabin_count.map(lambda x: 0 if pd.isnull(x) else len(str(x).split(' ')))
+        return cabin_count.map(lambda x: 0 if pd.isnull(x) else len(str(x).split(' '))).apply(float)
 
     def preprocess_port(self):
         '''
@@ -404,3 +405,4 @@ class Titanic():
                     name = col1 + "-" + col2
                     X = pd.concat([X, pd.Series(numerics.iloc[:,i] - numerics.iloc[:,j], name=name)], axis=1)
         return X
+
